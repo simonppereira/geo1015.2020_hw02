@@ -1,7 +1,7 @@
 #-- my_code_hw02.py
 #-- Assignment 02 GEO1015.2020
-#-- [YOUR NAME] 
-#-- [YOUR STUDENT NUMBER] 
+#-- [Simon Pena Pereira] 
+#-- [5391210] 
 #-- [YOUR NAME] 
 #-- [YOUR STUDENT NUMBER] 
 
