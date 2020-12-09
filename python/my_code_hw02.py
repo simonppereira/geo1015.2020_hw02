@@ -11,6 +11,15 @@ import numpy
 import rasterio
 from rasterio import features
 
+pt_1 = (3, 4)
+pt_2 = (5,6)
+
+def distance(pt1, pt2):
+    """Returns cartesian distance between self and other Point
+    """
+    dist = math.sqrt((pt1[0] - pt2[0])**2+(pt1[1] - pt2[1])**2)
+    return dist 
+
 
 
 def output_viewshed(d, viewpoints, maxdistance, output_file):
@@ -28,22 +37,59 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     Output:
         none (but output GeoTIFF file written to 'output-file')
     """  
-    
+    #print('our dataset: ',d)
+    #print('our viewpoints',viewpoints)
+    #print('our maxdistance',maxdistance)
+    #print('our output file',output_file)
     # [this code can and should be removed/modified/reutilised]
     # [it's just there to help you]
 
     #-- numpy of input
     npi  = d.read(1)
+    #print('shape',d.shape)
+    
+    
     #-- fetch the 1st viewpoint
     v = viewpoints[0]
+    
     #-- index of this point in the numpy raster
     vrow, vcol = d.index(v[0], v[1])
+    #print('vrow, vcol',vrow, vcol)
+    #print('reverse: ', (npi[0][vrow], npi[1][vcol]))
+    #print('successful reverse indexing: ', d.xy(vrow,vcol))
+    radius = maxdistance
     #-- the results of the viewshed in npvs, all values=0
     npvs = numpy.zeros(d.shape, dtype=numpy.int8)
+    #npvs2 = numpy.zeros(d.shape, dtype=numpy.int8)
+    #print('npvs', npvs)
     #-- put that pixel with value 2
     npvs[vrow , vcol] = 2
     #-- write this to disk
-
+    #print(npvs)
+    #print('height',d.height)
+    #print('width', d.width)
+    #print(npvs[300, 280])
+    #print(d.index)
+    #distance(v,)
+    #print('coordinate v',v)
+    #pt_x = d.xy(300, 280)
+    #print('x, y of index 300,280',pt_x)
+    #print(distance(v,pt_x))
+    cellsize = distance(d.xy(0,0), d.xy(0,1))
+    
+    for row in enumerate(npvs):
+        row_i = row[0]
+        for col in enumerate(row[1]):
+            col_i = col[0]
+            pt = d.xy(row_i,col_i)
+            dist = distance(v,pt)
+            if dist > maxdistance:
+                npvs[row_i,col_i] = 3
+            elif dist > (maxdistance - cellsize) and dist < maxdistance:
+                npvs[row_i,col_i] = 1
+    
+    
+        
     with rasterio.open(output_file, 'w', 
                        driver='GTiff', 
                        height=npi.shape[0],
@@ -55,6 +101,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
         dst.write(npvs.astype(rasterio.uint8), 1)
 
     print("Viewshed file written to '%s'" % output_file)
+
 
 
 
