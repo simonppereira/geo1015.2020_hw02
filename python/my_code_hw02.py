@@ -21,7 +21,6 @@ def distance(pt1, pt2):
     return dist 
 
 
-
 def output_viewshed(d, viewpoints, maxdistance, output_file):
     """
     !!! TO BE COMPLETED !!!
@@ -37,6 +36,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     Output:
         none (but output GeoTIFF file written to 'output-file')
     """  
+    # These are print to help you understand the structure of the inputs
     #print('our dataset: ',d)
     #print('our viewpoints',viewpoints)
     #print('our maxdistance',maxdistance)
@@ -47,36 +47,39 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     #-- numpy of input
     npi  = d.read(1)
     #print('shape',d.shape)
-    
-    
+        
     #-- fetch the 1st viewpoint
     v = viewpoints[0]
     
     #-- index of this point in the numpy raster
     vrow, vcol = d.index(v[0], v[1])
-    #print('vrow, vcol',vrow, vcol)
-    #print('reverse: ', (npi[0][vrow], npi[1][vcol]))
-    #print('successful reverse indexing: ', d.xy(vrow,vcol))
+    
+    #-- Radius of viewpoint
     radius = maxdistance
     #-- the results of the viewshed in npvs, all values=0
+    # This is actually our 'empty' raster to start with
     npvs = numpy.zeros(d.shape, dtype=numpy.int8)
-    #npvs2 = numpy.zeros(d.shape, dtype=numpy.int8)
     #print('npvs', npvs)
+    
     #-- put that pixel with value 2
+    # This is the value of the centerpoint of the viewshed
     npvs[vrow , vcol] = 2
-    #-- write this to disk
-    #print(npvs)
-    #print('height',d.height)
-    #print('width', d.width)
-    #print(npvs[300, 280])
-    #print(d.index)
-    #distance(v,)
-    #print('coordinate v',v)
-    #pt_x = d.xy(300, 280)
-    #print('x, y of index 300,280',pt_x)
-    #print(distance(v,pt_x))
+        
+    # Cellsize of one rastercell
     cellsize = distance(d.xy(0,0), d.xy(0,1))
     
+    # Now fill the rows and cols according to their index,
+    # with following possible values:
+    # 0: not visible from the viewpoint(s) (but inside the 
+    # max-distance/horizon zone(s))
+    # 1: visible from the viewpoint(s)
+    # 2: the pixel contains a viewpoint
+    # 3: the pixel is outside the max-distance/horizon zone(s)
+
+    # The 'empty' raster has default values of 0
+    # Now we assign values to cells that are outside of the max-distance/horizon
+    # with the value of 3
+    # For values on the edge of the horizon, we fill the cellvalue with 1
     for row in enumerate(npvs):
         row_i = row[0]
         for col in enumerate(row[1]):
@@ -89,7 +92,8 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                 npvs[row_i,col_i] = 1
     
     
-        
+    #-- write this to disk
+
     with rasterio.open(output_file, 'w', 
                        driver='GTiff', 
                        height=npi.shape[0],
