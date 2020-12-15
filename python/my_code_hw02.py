@@ -2,12 +2,12 @@
 #-- Assignment 02 GEO1015.2020
 #-- [Simon Pena Pereira] 
 #-- [5391210] 
-#-- [YOUR NAME] 
-#-- [YOUR STUDENT NUMBER] 
+#-- Daniel Dobson 
+#-- 5152739 
 
 import sys
 import math
-import numpy
+import numpy 
 import rasterio
 from rasterio import features
 
@@ -131,6 +131,11 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     first_line = Bresenham_with_rasterio(d,vi,horizon_points[0])
     print(first_line)    
     
+    # Fuse numpy arrays
+    mask = (npvs == 0)
+    npvsf = numpy.copy(npvs)
+    npvsf[mask] = first_line[mask]
+
     #-- write this to disk
 
     with rasterio.open(output_file, 'w', 
@@ -153,6 +158,16 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                        crs=d.crs, 
                        transform=d.transform) as dst:
         dst.write(first_line.astype(rasterio.uint8), 1)
+
+    with rasterio.open('out-test-mask.tif', 'w', 
+                       driver='GTiff', 
+                       height=npi.shape[0],
+                       width=npi.shape[1], 
+                       count=1, 
+                       dtype=rasterio.uint8,
+                       crs=d.crs, 
+                       transform=d.transform) as dst:
+        dst.write(npvsf.astype(rasterio.uint8), 1)
     
     print("Viewshed file written to '%s'" % output_file)
 
