@@ -86,7 +86,8 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
 
     #-- the results of the viewshed in npvs, all values=0
     # This is actually our 'empty' raster to start with
-    npvs = numpy.zeros(d.shape, dtype=numpy.int8)
+    #npvs = numpy.zeros(d.shape, dtype=numpy.int8)
+    npvs = numpy.full(d.shape, 3, dtype=numpy.int8)
     #print('npvs', npvs)
     
     # Now fill the rows and cols according to their index,
@@ -97,7 +98,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     # 2: the pixel contains a viewpoint
     # 3: the pixel is outside the max-distance/horizon zone(s)
 
-    horizon_points = []
+    
     
     for i in viewpoints:
         v = i
@@ -105,21 +106,47 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
         vrow, vcol = d.index(v[0], v[1])
         # This is the value of the centerpoint of the viewshed
         npvs[vrow , vcol] = 2
+
         for row in enumerate(npvs):
             row_i = row[0]
             for col in enumerate(row[1]):
                 col_i = col[0]
-                if npvs[row_i,col_i] != 3:
-                    pt = d.xy(row_i,col_i)
-                    dist = distance(v,pt)
-                    if dist > radius:
-                        npvs[row_i,col_i] = 3
-                    elif dist > (radius - cellsize) and dist < radius:
-                        npvs[row_i,col_i] = 1
-                        horizon_points.append((row_i,col_i))
+                pt = d.xy(row_i,col_i)
+                dist = distance(v,pt)
+                if dist > (radius - cellsize) and dist < radius and npvs[row_i,col_i] != 0:
+                    npvs[row_i,col_i] = 1
+                elif dist < (radius - cellsize) and npvs[row_i,col_i] != 2:
+                    npvs[row_i,col_i] = 0
 
+                
 
-    #print(horizon_points)
+    '''
+    #this is from old main loop
+    if npvs[row_i,col_i] != 3:
+
+        for row in enumerate(npvs):
+            row_i = row[0]
+            for col in enumerate(row[1]):
+                col_i = col[0]
+                pt = d.xy(row_i,col_i)
+                dist = distance(v,pt)
+                if dist > radius:
+                    npvs[row_i,col_i] = 3
+
+                elif dist > (radius - cellsize) and dist < radius:
+                    npvs[row_i,col_i] = 1
+                #elif dist < (radius - cellsize) and npvs[row_i,col_i] != 2:
+                    #npvs[row_i,col_i] = 0
+
+    horizon_points = []
+    for row in enumerate(npvs):
+        row_i = row[0]
+        for col in enumerate(row[1]):
+            col_i = col[0]
+            if npvs[row_i,col_i] == 1:
+                horizon_points.append((row_i,col_i)) 
+
+    print(horizon_points)
     # One of the horizon points
     #print('first horizon point',horizon_points[0])
     #print('its xy coordinate', d.xy(horizon_points[0][0],horizon_points[0][1]))
@@ -130,7 +157,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     #mask = (npvs == 0)
     #npvsf = numpy.copy(npvs)
     #npvsf[mask] = first_line[mask]
-
+    '''
     #-- write this to disk
     with rasterio.open(output_file, 'w', 
                        driver='GTiff', 
