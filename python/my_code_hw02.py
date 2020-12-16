@@ -54,7 +54,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
         none (but output GeoTIFF file written to 'output-file')
     """  
     # These are print to help you understand the structure of the inputs
-    #print('our dataset: ',d)
+    print('our dataset: ',d)
     #print('our viewpoints',viewpoints)
     #print('our maxdistance',maxdistance)
     #print('our output file',output_file)
@@ -64,9 +64,10 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
 
     #-- numpy of input
     npi  = d.read(1)
-    #print('shape',d.shape)
-    #print('type', type(npi))
-    
+    print('shape',d.shape)
+    print('type', type(npi))
+    print('shape npi ',npi.shape)
+    print(npi[0][0])
     #-- fetch the 1st viewpoint
     v = viewpoints[0]
     #v2 = viewpoints[1]
@@ -113,14 +114,30 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                 col_i = col[0]
                 pt = d.xy(row_i,col_i)
                 dist = distance(v,pt)
-                if dist > (radius - cellsize) and dist < radius and npvs[row_i,col_i] != 0:
+                if dist > (radius - cellsize) and dist < radius:
                     npvs[row_i,col_i] = 1
                 elif dist < (radius - cellsize) and npvs[row_i,col_i] != 2:
                     npvs[row_i,col_i] = 0
-
+    
+    '''
+    horizon_points = []
+    for row in enumerate(npvs):
+        row_i = row[0]
+        for col in enumerate(row[1]):
+            col_i = col[0]
+            if npvs[row_i,col_i] == 1:
+                horizon_points.append((row_i,col_i)) 
+    #print(horizon_points)       
+    
+    for i in viewpoints:
+        vi = d.index(i[0], i[1])
+        for pt in horizon_points:
+            pt = d.xy(pt)
+            dist = distance(i,pt)
+            if dist == (radius):
                 
 
-    '''
+    
     #this is from old main loop
     if npvs[row_i,col_i] != 3:
 
@@ -138,15 +155,9 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                 #elif dist < (radius - cellsize) and npvs[row_i,col_i] != 2:
                     #npvs[row_i,col_i] = 0
 
-    horizon_points = []
-    for row in enumerate(npvs):
-        row_i = row[0]
-        for col in enumerate(row[1]):
-            col_i = col[0]
-            if npvs[row_i,col_i] == 1:
-                horizon_points.append((row_i,col_i)) 
 
-    print(horizon_points)
+
+    
     # One of the horizon points
     #print('first horizon point',horizon_points[0])
     #print('its xy coordinate', d.xy(horizon_points[0][0],horizon_points[0][1]))
@@ -168,7 +179,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                        crs=d.crs, 
                        transform=d.transform) as dst:
         dst.write(npvs.astype(rasterio.uint8), 1)
-
+    
     print("Viewshed file written to '%s'" % output_file)
 
 
