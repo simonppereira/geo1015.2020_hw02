@@ -79,7 +79,7 @@ def slope(d,v,h,q,z):
     pt2 = x2, y2 = d.xy(q[0],q[1])
     x = distance(pt1,pt2)
     a = (y - b)/x
-    return a
+    return a, x
 
 def tangent_curr(a,x,b):
     """
@@ -170,7 +170,8 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
         # This is the value of the centerpoint of the viewshed
         h = v[2]
         #print('height',h)
-        npvs[vrow , vcol] = h
+        npvs[vrow , vcol] = h 
+        npvs
 
         for row in enumerate(npvs):
             row_i = row[0]
@@ -179,20 +180,27 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                 pt = d.xy(row_i,col_i)
                 dist = distance(v,pt)
                 if dist > (radius - cellsize) and dist < radius and npvs[row_i,col_i] != 2:
-                    npvs[row_i,col_i] = 1
+                    #npvs[row_i,col_i] = 1
                     horizon_point = (row_i, col_i)
                     output = Bresenham_with_rasterio(d,vi,horizon_point)
                     #print(output) 
                     slope_last = [-100]
                     for point in output:
                         cell_pt = x, y = point[0], point[1]
-                        t_curr = tangent_curr(slope_last[-1],)
-                        #t_curr = slope(d,v,h,cell_pt,npi[x][y])
-                        if t_curr > slope_last[-1]:
-
-                            
+                        #print(x, y)
+                        _, dist_x = slope(d,v,h,cell_pt,npi[x][y])
+                        y_curr = tangent_curr(slope_last[-1],dist_x,h)
+                        #print(y_curr)
+                        #print(npi[x][y])
+                        #dont use now t_curr = slope(d,v,h,cell_pt,npi[x][y])
+                        if npi[x][y] < y_curr:                      
+                            npvs[x,y] = 0
+                        elif npi[x][y] >= y_curr:
                             npvs[x,y] = 1
-
+                            a_curr,_ = slope(d,v,h,cell_pt,npi[x][y])
+                            slope_last.append(a_curr)
+                    #print(slope_last)
+    
 
     #-- write this to disk
     with rasterio.open(output_file, 'w', 
