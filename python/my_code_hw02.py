@@ -51,7 +51,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
         none (but output GeoTIFF file written to 'output-file')
     """  
     # These are print to help you understand the structure of the inputs
-    print('our dataset: ',d)
+    #print('our dataset: ',d)
     #print('our viewpoints',viewpoints)
     #print('our maxdistance',maxdistance)
     #print('our output file',output_file)
@@ -63,7 +63,10 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     npi  = d.read(1)
     #print('shape',d.shape)
     #print('type', type(npi))
-        
+    print("npi",npi.shape)
+    print(npi[0][0])
+    print("npi", npi)
+
     #-- fetch the 1st viewpoint
     v = viewpoints[0]
     print('viewpoint', v)
@@ -80,7 +83,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     #-- the results of the viewshed in npvs, all values=0
     # This is actually our 'empty' raster to start with
     npvs = numpy.zeros(d.shape, dtype=numpy.int8)
-    #print('npvs', npvs)
+    print('npvs', npvs)
     
     #-- put that pixel with value 2
     # This is the value of the centerpoint of the viewshed
@@ -129,7 +132,42 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     print('first horizon point',horizon_points[0])
     print('its xy coordinate', d.xy(horizon_points[0][0],horizon_points[0][1]))
     first_line = Bresenham_with_rasterio(d,vi,horizon_points[0])
-    print(first_line)    
+    print("first line", first_line)    
+    
+    
+   
+    ind= 0
+    for row_line in enumerate(first_line):
+        row_idx = row_line[0]
+        for col_line in enumerate(row_line[1]):
+            col_idx = col_line[0]
+            
+            if col_line[1] == 1:
+                ind +=1
+                print(ind,col_line[1])
+                print("r_idx, c_idx",(row_idx,col_idx))
+
+                line_z = npi[row_idx][col_idx] #height value from index
+                
+                print("line_z", line_z)
+                
+                first_line[row_idx , col_idx] = line_z
+    
+    for i in first_line:
+        for x in i:
+            if x != 0:
+                #row, col = x[0]
+                print("x",x)
+
+    for row_line in enumerate(first_line):
+        row_idx_wrong = row_line[0]
+        for col_line in enumerate(row_line[1]):
+            col_idx_wrong = col_line[0]
+            
+            if col_line[1] != 0:
+                print("r_idx_wrong, c_idx",(row_idx_wrong,col_idx_wrong))
+
+  
     
     #-- write this to disk
 
