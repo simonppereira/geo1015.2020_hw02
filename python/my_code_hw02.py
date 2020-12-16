@@ -2,12 +2,12 @@
 #-- Assignment 02 GEO1015.2020
 #-- [Simon Pena Pereira] 
 #-- [5391210] 
-#-- [YOUR NAME] 
-#-- [YOUR STUDENT NUMBER] 
+#-- Daniel Dobson 
+#-- 5152739 
 
 import sys
 import math
-import numpy
+import numpy 
 import rasterio
 from rasterio import features
 
@@ -21,6 +21,8 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
      # d = rasterio dataset as above
      a = viewpoint
      b = horizon_point
+     ax, ay = a[0], a[1]
+     bx, by = b[0], b[1]
      #-- create in-memory a simple GeoJSON LineString
      v = {}
      v["type"] = "LineString"
@@ -33,7 +35,31 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
                              all_touched=True,
                              transform=d.transform)
      # re is a numpy with d.shape where the line is rasterised (values != 0)
-     return re
+     line = numpy.nonzero(re == 1)
+     #line = numpy.flip(line)
+     output = numpy.argwhere(re == 1)
+     #output = output.sort()
+     if bx > ax and by > ay:
+        output = numpy.argwhere(re == 1)
+     elif bx > ax and by < ay:
+        output = output[output[:,1].argsort()[::-1]]
+     elif bx < ax and by < ay:
+        output = output[output[:,0].argsort()[::-1]]
+        output = output[output[:,1].argsort()[::-1]]
+     elif bx < ax and by > ay:
+        output = output[output[:,0].argsort()[::-1]]
+
+     # Sort on x high to low
+     #output = output[output[:,0].argsort()[::-1]]
+     # Sort on y low to high
+     #output = output[output[:,1].argsort()]
+     # Sort on y high to low
+     #output = output[output[:,1].argsort()[::-1]]
+     return line, output
+
+#def tangent(d,v,q):
+    #y = a * x + b
+
 
 def output_viewshed(d, viewpoints, maxdistance, output_file):
     """
@@ -61,36 +87,34 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
 
     #-- numpy of input
     npi  = d.read(1)
-    #print('shape',d.shape)
-    #print('type', type(npi))
-    print("npi",npi.shape)
+    print('shape',d.shape)
+    print('type', type(d))
+    print('type', type(npi))
+    print('shape npi ',npi.shape)
     print(npi[0][0])
-    print("npi", npi)
-
+    print(npi[0,0])
     #-- fetch the 1st viewpoint
     v = viewpoints[0]
-    print('viewpoint', v)
-    print('viewpoint x', v[0])
-    print('viewpoint y', v[1])
+    #v2 = viewpoints[1]
+    #print('viewpoint', v)
+    #print('viewpoint', v2)
+    #print('viewpoint x', v[0])
+    #print('viewpoint y', v[1])
 
-    #-- index of this point in the numpy raster
-    vrow, vcol = d.index(v[0], v[1])
-    vi = vrow, vcol
-    print('viewpoint index', vi)
-    
+    #cellsize 
+    cell_ul,_ = d.xy(v[0],v[1],offset='ul')
+    cell_ur,_ = d.xy(v[0],v[1],offset='ur')
+    cellsize = cell_ur-cell_ul
+    #print('cellsize', cellsize)
+
     #-- Radius of viewpoint
     radius = maxdistance
+
     #-- the results of the viewshed in npvs, all values=0
     # This is actually our 'empty' raster to start with
-    npvs = numpy.zeros(d.shape, dtype=numpy.int8)
-    print('npvs', npvs)
-    
-    #-- put that pixel with value 2
-    # This is the value of the centerpoint of the viewshed
-    npvs[vrow , vcol] = 2
-        
-    # Cellsize of one rastercell
-    cellsize = distance(d.xy(0,0), d.xy(0,1))
+    #npvs = numpy.zeros(d.shape, dtype=numpy.int8)
+    npvs = numpy.full(d.shape, 3, dtype=numpy.int8)
+    #print('npvs', npvs)
     
     # Now fill the rows and cols according to their index,
     # with following possible values:
@@ -99,78 +123,34 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     # 1: visible from the viewpoint(s)
     # 2: the pixel contains a viewpoint
     # 3: the pixel is outside the max-distance/horizon zone(s)
-
-    # The 'empty' raster has default values of 0
-    # Now we assign values to cells that are outside of the max-distance/horizon
-    # with the value of 3
-    # For values on the edge of the horizon, we fill the cellvalue with 1
-    horizon_points = []
-    for row in enumerate(npvs):
-        row_i = row[0]
-        for col in enumerate(row[1]):
-            col_i = col[0]
-            pt = d.xy(row_i,col_i)
-            dist = distance(v,pt)
-            if dist > maxdistance:
-                npvs[row_i,col_i] = 3
-            elif dist > (maxdistance - cellsize) and dist < maxdistance:
-                npvs[row_i,col_i] = 1
-                horizon_points.append((row_i,col_i))
-
+       
     
-    '''
-    # Loop in the works:
-    # Perform LoS for whole circle. Every point of circle border has value of 1
-    # Need Bresenham for this to work.
-      
-    for cell in npvs:
-        horizon_points.append(cell)
-    print(horizon_points)
-    '''
-    #print(horizon_points)
-    # One of the horizon points
-    print('first horizon point',horizon_points[0])
-    print('its xy coordinate', d.xy(horizon_points[0][0],horizon_points[0][1]))
-    first_line = Bresenham_with_rasterio(d,vi,horizon_points[0])
-    print("first line", first_line)    
-    
-    
-   
-    ind= 0
-    for row_line in enumerate(first_line):
-        row_idx = row_line[0]
-        for col_line in enumerate(row_line[1]):
-            col_idx = col_line[0]
-            
-            if col_line[1] == 1:
-                ind +=1
-                print(ind,col_line[1])
-                print("r_idx, c_idx",(row_idx,col_idx))
+    for i in viewpoints:
+        v = i
+        # index of this point in the numpy raster
+        vi = vrow, vcol = d.index(v[0], v[1])
+        #vi = vrow, vcol
+        # This is the value of the centerpoint of the viewshed
+        npvs[vrow , vcol] = 2
 
-                line_z = npi[row_idx][col_idx] #height value from index
-                
-                print("line_z", line_z)
-                
-                first_line[row_idx , col_idx] = line_z
-    
-    for i in first_line:
-        for x in i:
-            if x != 0:
-                #row, col = x[0]
-                print("x",x)
+        for row in enumerate(npvs):
+            row_i = row[0]
+            for col in enumerate(row[1]):
+                col_i = col[0]
+                pt = d.xy(row_i,col_i)
+                dist = distance(v,pt)
+                if dist > (radius - cellsize) and dist < radius and npvs[row_i,col_i] != 2:
+                    npvs[row_i,col_i] = 1
+                    horizon_point = (row_i, col_i)
+                    line, output = Bresenham_with_rasterio(d,vi,horizon_point)
+                    #print(output)
+                    for point in output:
+                        x, y = point[0], point[1]
+                        if npvs[x,y] != 2:
+                            npvs[x,y] = 1
 
-    for row_line in enumerate(first_line):
-        row_idx_wrong = row_line[0]
-        for col_line in enumerate(row_line[1]):
-            col_idx_wrong = col_line[0]
-            
-            if col_line[1] != 0:
-                print("r_idx_wrong, c_idx",(row_idx_wrong,col_idx_wrong))
 
-  
-    
     #-- write this to disk
-
     with rasterio.open(output_file, 'w', 
                        driver='GTiff', 
                        height=npi.shape[0],
@@ -180,17 +160,6 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                        crs=d.crs, 
                        transform=d.transform) as dst:
         dst.write(npvs.astype(rasterio.uint8), 1)
-
-    
-    with rasterio.open('out-test-line.tif', 'w', 
-                       driver='GTiff', 
-                       height=npi.shape[0],
-                       width=npi.shape[1], 
-                       count=1, 
-                       dtype=rasterio.uint8,
-                       crs=d.crs, 
-                       transform=d.transform) as dst:
-        dst.write(first_line.astype(rasterio.uint8), 1)
     
     print("Viewshed file written to '%s'" % output_file)
 
