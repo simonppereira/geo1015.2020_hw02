@@ -38,19 +38,20 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
      line = numpy.nonzero(re == 1)
      #line = numpy.flip(line)
      output = numpy.argwhere(re == 1)
+     output = output[output[:,0].argsort()[::-1]]
+     #output = output[output[:,1].argsort()]
+     #output = output[output[:,0].argsort()]
      #output = output.sort()
-     if bx > ax and by > ay:
+     
+     if bx > ax:
         output = numpy.argwhere(re == 1)
-     elif bx > ax and by < ay:
-        output = output[output[:,1].argsort()[::-1]]
-     elif bx < ax and by < ay:
+     elif bx < ax:
         output = output[output[:,0].argsort()[::-1]]
-        output = output[output[:,1].argsort()[::-1]]
-     elif bx < ax and by > ay:
-        output = output[output[:,0].argsort()[::-1]]
-
+    
      # Sort on x high to low
      #output = output[output[:,0].argsort()[::-1]]
+     # Sort on x hlow to high
+     #output = output[output[:,0].argsort()]
      # Sort on y low to high
      #output = output[output[:,1].argsort()]
      # Sort on y high to low
@@ -143,7 +144,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                     npvs[row_i,col_i] = 1
                     horizon_point = (row_i, col_i)
                     line, output = Bresenham_with_rasterio(d,vi,horizon_point)
-                    #print(output)
+                    print(output)
                     for point in output:
                         x, y = point[0], point[1]
                         if npvs[x,y] != 2:
