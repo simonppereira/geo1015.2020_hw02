@@ -21,6 +21,8 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
      # d = rasterio dataset as above
      a = viewpoint
      b = horizon_point
+     ax, ay = a[0], a[1]
+     bx, by = b[0], b[1]
      #-- create in-memory a simple GeoJSON LineString
      v = {}
      v["type"] = "LineString"
@@ -34,8 +36,26 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
                              transform=d.transform)
      # re is a numpy with d.shape where the line is rasterised (values != 0)
      line = numpy.nonzero(re == 1)
+     #line = numpy.flip(line)
      output = numpy.argwhere(re == 1)
-     return line
+     #output = output.sort()
+     if bx > ax and by > ay:
+        output = numpy.argwhere(re == 1)
+     elif bx > ax and by < ay:
+        output = output[output[:,1].argsort()[::-1]]
+     elif bx < ax and by < ay:
+        output = output[output[:,0].argsort()[::-1]]
+        output = output[output[:,1].argsort()[::-1]]
+     elif bx < ax and by > ay:
+        output = output[output[:,0].argsort()[::-1]]
+
+     # Sort on x high to low
+     #output = output[output[:,0].argsort()[::-1]]
+     # Sort on y low to high
+     #output = output[output[:,1].argsort()]
+     # Sort on y high to low
+     #output = output[output[:,1].argsort()[::-1]]
+     return line, output
 
 #def tangent(d,v,q):
     #y = a * x + b
@@ -72,7 +92,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     print('type', type(npi))
     print('shape npi ',npi.shape)
     print(npi[0][0])
-    print()
+    print(npi[0,0])
     #-- fetch the 1st viewpoint
     v = viewpoints[0]
     #v2 = viewpoints[1]
@@ -103,15 +123,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     # 1: visible from the viewpoint(s)
     # 2: the pixel contains a viewpoint
     # 3: the pixel is outside the max-distance/horizon zone(s)
-    
-    a = numpy.array([[1, 2, 3], [4, 5, 3], [7, 3, 9]])
-    b = numpy.nonzero(a == 3)
-    print(b[0],b[1])
-    #(array([1, 1, 1, 2, 2, 2]), array([0, 1, 2, 0, 1, 2]))
-    #print(b[0][0])
-    for row, col in zip(b[0],b[1]):
-        print(row,col)
-    
+       
     
     for i in viewpoints:
         v = i
@@ -130,73 +142,14 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                 if dist > (radius - cellsize) and dist < radius and npvs[row_i,col_i] != 2:
                     npvs[row_i,col_i] = 1
                     horizon_point = (row_i, col_i)
-                    line = Bresenham_with_rasterio(d,vi,horizon_point)
-                    print(line)
-                    for row_l, col_l in zip(line[0],line[1]):
-                        line_pt = (row_l,col_l)
-                        if npvs[row_l,col_l] != 2:
-                            #npvs[row_l,col_l] = 1
-                            npvs[row_l,col_l] = npi[row_l][col_l]
-                            #print(line_pt)
-                            #row_li = row_l[0]
-                            #for col_l in row_l:
-                            #print(row_li, col_l)
-                            #print(type(line[0]))
-                            #npvs[row_li,col_l] = 1
-                #elif dist < (radius - cellsize) and npvs[row_i,col_i] != 2:
-                    #npvs[row_i,col_i] = 0
-        #npvs[vrow , vcol] = 2
-    
-    '''
-    horizon_points = []
-    for row in enumerate(npvs):
-        row_i = row[0]
-        for col in enumerate(row[1]):
-            col_i = col[0]
-            if npvs[row_i,col_i] == 1:
-                horizon_points.append((row_i,col_i)) 
-    #print(horizon_points)       
-    
-    for i in viewpoints:
-        vi = d.index(i[0], i[1])
-        for pt in horizon_points:
-            pt = d.xy(pt)
-            dist = distance(i,pt)
-            if dist == (radius):
-                
-
-    
-    #this is from old main loop
-    if npvs[row_i,col_i] != 3:
-
-        for row in enumerate(npvs):
-            row_i = row[0]
-            for col in enumerate(row[1]):
-                col_i = col[0]
-                pt = d.xy(row_i,col_i)
-                dist = distance(v,pt)
-                if dist > radius:
-                    npvs[row_i,col_i] = 3
-
-                elif dist > (radius - cellsize) and dist < radius:
-                    npvs[row_i,col_i] = 1
-                #elif dist < (radius - cellsize) and npvs[row_i,col_i] != 2:
-                    #npvs[row_i,col_i] = 0
+                    line, output = Bresenham_with_rasterio(d,vi,horizon_point)
+                    #print(output)
+                    for point in output:
+                        x, y = point[0], point[1]
+                        if npvs[x,y] != 2:
+                            npvs[x,y] = 1
 
 
-
-    
-    # One of the horizon points
-    #print('first horizon point',horizon_points[0])
-    #print('its xy coordinate', d.xy(horizon_points[0][0],horizon_points[0][1]))
-    #first_line = Bresenham_with_rasterio(d,vi,horizon_points[0])
-    #print(first_line)    
-    
-    # Fuse numpy arrays
-    #mask = (npvs == 0)
-    #npvsf = numpy.copy(npvs)
-    #npvsf[mask] = first_line[mask]
-    '''
     #-- write this to disk
     with rasterio.open(output_file, 'w', 
                        driver='GTiff', 
