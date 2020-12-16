@@ -33,7 +33,9 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
                              all_touched=True,
                              transform=d.transform)
      # re is a numpy with d.shape where the line is rasterised (values != 0)
-     return re
+     line = numpy.nonzero(re == 1)
+     #output = numpy.argwhere(re == 1)
+     return line
 
 #def tangent(d,v,q):
 
@@ -98,13 +100,21 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     # 1: visible from the viewpoint(s)
     # 2: the pixel contains a viewpoint
     # 3: the pixel is outside the max-distance/horizon zone(s)
-
+    
+    a = numpy.array([[1, 2, 3], [4, 5, 3], [7, 3, 9]])
+    b = numpy.nonzero(a == 3)
+    print(b[0],b[1])
+    #(array([1, 1, 1, 2, 2, 2]), array([0, 1, 2, 0, 1, 2]))
+    #print(b[0][0])
+    for row, col in zip(b[0],b[1]):
+        print(row,col)
     
     
     for i in viewpoints:
         v = i
         # index of this point in the numpy raster
         vrow, vcol = d.index(v[0], v[1])
+        vi = vrow, vcol
         # This is the value of the centerpoint of the viewshed
         npvs[vrow , vcol] = 2
 
@@ -116,6 +126,16 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                 dist = distance(v,pt)
                 if dist > (radius - cellsize) and dist < radius:
                     npvs[row_i,col_i] = 1
+                    horizon_point = (row_i, col_i)
+                    line = Bresenham_with_rasterio(d,vi,horizon_point)
+                    #print(type(line))
+                    for row_l, col_l in zip(line[0],line[1]):
+                        npvs[row_l,col_l] = 1
+                        #row_li = row_l[0]
+                        #for col_l in row_l:
+                            #print(row_li, col_l)
+                            #print(type(line[0]))
+                            #npvs[row_li,col_l] = 1
                 elif dist < (radius - cellsize) and npvs[row_i,col_i] != 2:
                     npvs[row_i,col_i] = 0
     
