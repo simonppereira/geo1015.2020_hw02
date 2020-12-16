@@ -34,10 +34,11 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
                              transform=d.transform)
      # re is a numpy with d.shape where the line is rasterised (values != 0)
      line = numpy.nonzero(re == 1)
-     #output = numpy.argwhere(re == 1)
+     output = numpy.argwhere(re == 1)
      return line
 
 #def tangent(d,v,q):
+    #y = a * x + b
 
 
 def output_viewshed(d, viewpoints, maxdistance, output_file):
@@ -67,9 +68,11 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     #-- numpy of input
     npi  = d.read(1)
     print('shape',d.shape)
+    print('type', type(d))
     print('type', type(npi))
     print('shape npi ',npi.shape)
     print(npi[0][0])
+    print()
     #-- fetch the 1st viewpoint
     v = viewpoints[0]
     #v2 = viewpoints[1]
@@ -113,8 +116,8 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     for i in viewpoints:
         v = i
         # index of this point in the numpy raster
-        vrow, vcol = d.index(v[0], v[1])
-        vi = vrow, vcol
+        vi = vrow, vcol = d.index(v[0], v[1])
+        #vi = vrow, vcol
         # This is the value of the centerpoint of the viewshed
         npvs[vrow , vcol] = 2
 
@@ -124,20 +127,25 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                 col_i = col[0]
                 pt = d.xy(row_i,col_i)
                 dist = distance(v,pt)
-                if dist > (radius - cellsize) and dist < radius:
+                if dist > (radius - cellsize) and dist < radius and npvs[row_i,col_i] != 2:
                     npvs[row_i,col_i] = 1
                     horizon_point = (row_i, col_i)
                     line = Bresenham_with_rasterio(d,vi,horizon_point)
-                    #print(type(line))
+                    print(line)
                     for row_l, col_l in zip(line[0],line[1]):
-                        npvs[row_l,col_l] = 1
-                        #row_li = row_l[0]
-                        #for col_l in row_l:
+                        line_pt = (row_l,col_l)
+                        if npvs[row_l,col_l] != 2:
+                            #npvs[row_l,col_l] = 1
+                            npvs[row_l,col_l] = npi[row_l][col_l]
+                            #print(line_pt)
+                            #row_li = row_l[0]
+                            #for col_l in row_l:
                             #print(row_li, col_l)
                             #print(type(line[0]))
                             #npvs[row_li,col_l] = 1
-                elif dist < (radius - cellsize) and npvs[row_i,col_i] != 2:
-                    npvs[row_i,col_i] = 0
+                #elif dist < (radius - cellsize) and npvs[row_i,col_i] != 2:
+                    #npvs[row_i,col_i] = 0
+        #npvs[vrow , vcol] = 2
     
     '''
     horizon_points = []
@@ -188,7 +196,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     #mask = (npvs == 0)
     #npvsf = numpy.copy(npvs)
     #npvsf[mask] = first_line[mask]
-    '''
+    
     #-- write this to disk
     with rasterio.open(output_file, 'w', 
                        driver='GTiff', 
@@ -199,7 +207,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                        crs=d.crs, 
                        transform=d.transform) as dst:
         dst.write(npvs.astype(rasterio.uint8), 1)
-    
+    '''
     print("Viewshed file written to '%s'" % output_file)
 
 
