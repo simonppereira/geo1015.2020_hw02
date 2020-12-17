@@ -72,6 +72,7 @@ def slope(d,v,h,q,z):
 
     Output:
     a:              slope   
+    x:              distance
     """
     y = z
     b = h
@@ -168,10 +169,10 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
         vi = vrow, vcol = d.index(v[0], v[1])
         #vi = vrow, vcol
         # This is the value of the centerpoint of the viewshed
-        h = v[2]
-        #print('height',h)
+        print("npi", npi[vrow][vcol])
+        h = v[2] + npi[vi]
+        print('height',h)
         npvs[vrow , vcol] = h 
-        npvs
 
         for row in enumerate(npvs):
             row_i = row[0]
@@ -187,11 +188,15 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                     slope_last = [-100]
                     for point in output:
                         cell_pt = x, y = point[0], point[1]
-                        #print(x, y)
+                        dx,_ = d.xy(x, y)
+                        #print("dx", dx)
+                        #print("v",v)
                         _, dist_x = slope(d,v,h,cell_pt,npi[x][y])
-                        y_curr = tangent_curr(slope_last[-1],dist_x,h)
-                        #print(y_curr)
-                        #print(npi[x][y])
+                        #print("dist",dist_x)
+                        
+                        y_curr = tangent_curr(slope_last[-1],dx,h)
+                        #print("y_cur",y_curr)
+                        #print("npi",npi[x][y])
                         #dont use now t_curr = slope(d,v,h,cell_pt,npi[x][y])
                         if npi[x][y] < y_curr:                      
                             npvs[x,y] = 0
@@ -200,7 +205,7 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                             a_curr,_ = slope(d,v,h,cell_pt,npi[x][y])
                             slope_last.append(a_curr)
                     #print(slope_last)
-    
+
 
     #-- write this to disk
     with rasterio.open(output_file, 'w', 
