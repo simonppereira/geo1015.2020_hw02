@@ -21,6 +21,7 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
      # d = rasterio dataset as above
      a = viewpoint
      b = horizon_point
+     # Extract coordinates of a and b
      ax, ay = d.xy(a[0], a[1])
      bx, by = d.xy(b[0], b[1])
 
@@ -93,6 +94,22 @@ def tangent_curr(a,x,b):
     y = (a*x) + b
     return y
 
+'''
+def horizon(dist,shape,radius,idx):
+    if dist > (radius - cellsize) and dist < radius:
+        #print(npvs[row_i,col_i])
+        horizon_point = (row_i, col_i)
+        #horizon_points.append(horizon_point)
+    elif dist > (radius - cellsize) and dist < radius and row_i < 0:
+        horizon_point = (0,col_i)
+    elif dist > (radius - cellsize) and dist < radius and row_i > shape[0]:
+        horizon_point = (shape[0],col_i)
+    elif dist > (radius - cellsize) and dist < radius and col_i < 0:
+        horizon_point = (row_i,0)
+    elif dist > (radius - cellsize) and dist < radius and col_i > shape[1]:
+        horizon_point = (0,shape[1])
+'''
+
 def output_viewshed(d, viewpoints, maxdistance, output_file):
     """
     !!! TO BE COMPLETED !!!
@@ -119,10 +136,10 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
 
     #-- numpy of input
     npi  = d.read(1)
-    #print('shape',d.shape)
+    print('shape d',d.shape)
     #print('type', type(d))
     #print('type', type(npi))
-    #print('shape npi ',npi.shape)
+    print('shape npi ',npi.shape)
     #print(npi[0][0])
     #print(npi[0,0])
     #-- fetch the 1st viewpoint
@@ -139,17 +156,18 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     cell_ul,_ = d.xy(v[0],v[1],offset='ul')
     cell_ur,_ = d.xy(v[0],v[1],offset='ur')
     cellsize = cell_ur-cell_ul
-    print('cellsize', cellsize)
+    #print('cellsize', cellsize)
 
     #-- Radius of viewpoint
     radius = maxdistance
 
+    
     #-- the results of the viewshed in npvs, all values=0
     # This is actually our 'empty' raster to start with
     #npvs = numpy.zeros(d.shape, dtype=numpy.int8)
     npvs = numpy.full(d.shape, 3, dtype=numpy.int8)
     #print('npvs', npvs)
-    
+    print('shape npvs',npvs.shape)
     # Now fill the rows and cols according to their index,
     # with following possible values:
     # 0: not visible from the viewpoint(s) (but inside the 
@@ -159,6 +177,16 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     # 3: the pixel is outside the max-distance/horizon zone(s)
 
     for i in viewpoints:
+        #-- numpy of input
+        npi  = d.read(1)
+        #cellsize 
+        cell_ul,_ = d.xy(v[0],v[1],offset='ul')
+        cell_ur,_ = d.xy(v[0],v[1],offset='ur')
+        cellsize = cell_ur-cell_ul
+
+        #-- Radius of viewpoint
+        radius = maxdistance
+        # viewpoint
         v = i
         vco = (v[0],v[1])
         # index of this point in the numpy raster
@@ -169,37 +197,254 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
         h = npi[vrow][vcol] + v[2]
         #print('height',h)
         npvs[vrow,vcol] = 2 
-        horizon_points = []
-        output_list= []
-        vi_list = []
-        npvs[vrow,vcol] = 2
+        #horizon_points = []
+        #output_list= []
+        #vi_list = []
+        
+        #-- the results of the viewshed in npvs, all values=0
+        # This is actually our 'empty' raster to start with
+        npvs = numpy.full(d.shape, 3, dtype=numpy.int8)
+        shape = d.shape
+        print(shape)
+        # Loop though every raster cell and enumerate 
+        # (indices of row and column respectively)
         for row in enumerate(npvs):
             row_i = row[0]
             for col in enumerate(row[1]):
                 col_i = col[0]
+                idx = row_i, col_i
                 pt = d.xy(row_i,col_i)
-                dist = distance(v,pt)
-                if dist > (radius - cellsize) and dist < radius:
-                    #npvs[row_i,col_i] = 1
+                dist = distance(vco,pt)
+                # When arrived at horizon point, initiate rasterized line
+                if dist > (radius - cellsize) and dist < radius and row_i == 0:
+                    if col_i < vcol:
+                        for col_t in range(col_i,vcol+2):
+                            horizon_point = (0,col_t)
+                            output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
+                            #output_list.append(output)
+                            slope_last = [-100]
+                            # For each cell on rasterized line, 
+                            # compute tangent between viewpoint (v) and cell (qi)
+                            for cell in output:
+                                cell_pt_i = ptix, ptiy = cell[0], cell[1]
+                                cell_co_pt = cell_cx, cell_cy = d.xy(ptix,ptiy)
+                                dist_vq = distance(vco,cell_co_pt)
+                                zq = npi[ptix,ptiy]
+                                y_curr = tangent_curr(slope_last[-1],dist_vq,h)
+                                # If cell height is lower than tangent hight, 
+                                # map cell invisible (0).
+                                if zq < y_curr and npvs[ptix,ptiy] != 2 and npvs[ptix,ptiy] != 1:
+                                    npvs[ptix,ptiy] = 0
+                                # If cell height is higher than tangent,
+                                # map cell visible (1) and update slope tangent
+                                elif zq >= y_curr and npvs[ptix,ptiy] != 2:
+                                    npvs[ptix,ptiy] = 1
+                                    slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
+                                    slope_last.append(slope_curr)
+                    else:
+                        for col_t in range(vcol,col_i+2):
+                            horizon_point = (0,col_t)
+                            output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
+                            #output_list.append(output)
+                            slope_last = [-100]
+                            # For each cell on rasterized line, 
+                            # compute tangent between viewpoint (v) and cell (qi)
+                            for cell in output:
+                                cell_pt_i = ptix, ptiy = cell[0], cell[1]
+                                cell_co_pt = cell_cx, cell_cy = d.xy(ptix,ptiy)
+                                dist_vq = distance(vco,cell_co_pt)
+                                zq = npi[ptix,ptiy]
+                                y_curr = tangent_curr(slope_last[-1],dist_vq,h)
+                                # If cell height is lower than tangent hight, 
+                                # map cell invisible (0).
+                                if zq < y_curr and npvs[ptix,ptiy] != 2 and npvs[ptix,ptiy] != 1:
+                                    npvs[ptix,ptiy] = 0
+                                # If cell height is higher than tangent,
+                                # map cell visible (1) and update slope tangent
+                                elif zq >= y_curr and npvs[ptix,ptiy] != 2:
+                                    npvs[ptix,ptiy] = 1
+                                    slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
+                                    slope_last.append(slope_curr)
+                    #dist > (radius - cellsize) and dist < radius and 
+                    #horizon_point = (0,col_i)
+                elif dist > (radius - cellsize) and dist < radius and row_i == (shape[0]-1):
+                    print('I caught pacman', col_i,shape)
+                    if col_i < vcol:
+                        for col_t in range(col_i,vcol+2):
+                            horizon_point = (shape[0],col_t)
+                            output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
+                            #output_list.append(output)
+                            slope_last = [-100]
+                            # For each cell on rasterized line, 
+                            # compute tangent between viewpoint (v) and cell (qi)
+                            for cell in output:
+                                cell_pt_i = ptix, ptiy = cell[0], cell[1]
+                                cell_co_pt = cell_cx, cell_cy = d.xy(ptix,ptiy)
+                                dist_vq = distance(vco,cell_co_pt)
+                                zq = npi[ptix,ptiy]
+                                y_curr = tangent_curr(slope_last[-1],dist_vq,h)
+                                # If cell height is lower than tangent hight, 
+                                # map cell invisible (0).
+                                if zq < y_curr and npvs[ptix,ptiy] != 2 and npvs[ptix,ptiy] != 1:
+                                    npvs[ptix,ptiy] = 0
+                                # If cell height is higher than tangent,
+                                # map cell visible (1) and update slope tangent
+                                elif zq >= y_curr and npvs[ptix,ptiy] != 2:
+                                    npvs[ptix,ptiy] = 1
+                                    slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
+                                    slope_last.append(slope_curr)
+                    else:
+                        for col_t in range(vcol,col_i+2):
+                            horizon_point = (shape[0],col_t)
+                            output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
+                            #output_list.append(output)
+                            slope_last = [-100]
+                            # For each cell on rasterized line, 
+                            # compute tangent between viewpoint (v) and cell (qi)
+                            for cell in output:
+                                cell_pt_i = ptix, ptiy = cell[0], cell[1]
+                                cell_co_pt = cell_cx, cell_cy = d.xy(ptix,ptiy)
+                                dist_vq = distance(vco,cell_co_pt)
+                                zq = npi[ptix,ptiy]
+                                y_curr = tangent_curr(slope_last[-1],dist_vq,h)
+                                # If cell height is lower than tangent hight, 
+                                # map cell invisible (0).
+                                if zq < y_curr and npvs[ptix,ptiy] != 2 and npvs[ptix,ptiy] != 1:
+                                    npvs[ptix,ptiy] = 0
+                                # If cell height is higher than tangent,
+                                # map cell visible (1) and update slope tangent
+                                elif zq >= y_curr and npvs[ptix,ptiy] != 2:
+                                    npvs[ptix,ptiy] = 1
+                                    slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
+                                    slope_last.append(slope_curr)
+                elif dist > (radius - cellsize) and dist < radius and col_i == 0:
+                    if row_i < vrow:
+                        for row_t in range(row_i,vrow+2):
+                            horizon_point = (row_t,0)
+                            output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
+                            #output_list.append(output)
+                            slope_last = [-100]
+                            # For each cell on rasterized line, 
+                            # compute tangent between viewpoint (v) and cell (qi)
+                            for cell in output:
+                                cell_pt_i = ptix, ptiy = cell[0], cell[1]
+                                cell_co_pt = cell_cx, cell_cy = d.xy(ptix,ptiy)
+                                dist_vq = distance(vco,cell_co_pt)
+                                zq = npi[ptix,ptiy]
+                                y_curr = tangent_curr(slope_last[-1],dist_vq,h)
+                                # If cell height is lower than tangent hight, 
+                                # map cell invisible (0).
+                                if zq < y_curr and npvs[ptix,ptiy] != 2 and npvs[ptix,ptiy] != 1:
+                                    npvs[ptix,ptiy] = 0
+                                # If cell height is higher than tangent,
+                                # map cell visible (1) and update slope tangent
+                                elif zq >= y_curr and npvs[ptix,ptiy] != 2:
+                                    npvs[ptix,ptiy] = 1
+                                    slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
+                                    slope_last.append(slope_curr)
+                    else:
+                        for row_t in range(vrow,row_i+2):
+                            horizon_point = (row_t,0)
+                            output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
+                            #output_list.append(output)
+                            slope_last = [-100]
+                            # For each cell on rasterized line, 
+                            # compute tangent between viewpoint (v) and cell (qi)
+                            for cell in output:
+                                cell_pt_i = ptix, ptiy = cell[0], cell[1]
+                                cell_co_pt = cell_cx, cell_cy = d.xy(ptix,ptiy)
+                                dist_vq = distance(vco,cell_co_pt)
+                                zq = npi[ptix,ptiy]
+                                y_curr = tangent_curr(slope_last[-1],dist_vq,h)
+                                # If cell height is lower than tangent hight, 
+                                # map cell invisible (0).
+                                if zq < y_curr and npvs[ptix,ptiy] != 2 and npvs[ptix,ptiy] != 1:
+                                    npvs[ptix,ptiy] = 0
+                                # If cell height is higher than tangent,
+                                # map cell visible (1) and update slope tangent
+                                elif zq >= y_curr and npvs[ptix,ptiy] != 2:
+                                    npvs[ptix,ptiy] = 1
+                                    slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
+                                    slope_last.append(slope_curr)
+                elif dist > (radius - cellsize) and dist < radius and col_i == (shape[1]-1):
+                    if row_i < vrow:
+                        for row_t in range(row_i,vrow+2):
+                            horizon_point = (row_t,0)
+                            output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
+                            #output_list.append(output)
+                            slope_last = [-100]
+                            # For each cell on rasterized line, 
+                            # compute tangent between viewpoint (v) and cell (qi)
+                            for cell in output:
+                                cell_pt_i = ptix, ptiy = cell[0], cell[1]
+                                cell_co_pt = cell_cx, cell_cy = d.xy(ptix,ptiy)
+                                dist_vq = distance(vco,cell_co_pt)
+                                zq = npi[ptix,ptiy]
+                                y_curr = tangent_curr(slope_last[-1],dist_vq,h)
+                                # If cell height is lower than tangent hight, 
+                                # map cell invisible (0).
+                                if zq < y_curr and npvs[ptix,ptiy] != 2 and npvs[ptix,ptiy] != 1:
+                                    npvs[ptix,ptiy] = 0
+                                # If cell height is higher than tangent,
+                                # map cell visible (1) and update slope tangent
+                                elif zq >= y_curr and npvs[ptix,ptiy] != 2:
+                                    npvs[ptix,ptiy] = 1
+                                    slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
+                                    slope_last.append(slope_curr)
+                    else:
+                        for row_t in range(vrow,row_i+2):
+                            horizon_point = (row_t,0)
+                            output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
+                            #output_list.append(output)
+                            slope_last = [-100]
+                            # For each cell on rasterized line, 
+                            # compute tangent between viewpoint (v) and cell (qi)
+                            for cell in output:
+                                cell_pt_i = ptix, ptiy = cell[0], cell[1]
+                                cell_co_pt = cell_cx, cell_cy = d.xy(ptix,ptiy)
+                                dist_vq = distance(vco,cell_co_pt)
+                                zq = npi[ptix,ptiy]
+                                y_curr = tangent_curr(slope_last[-1],dist_vq,h)
+                                # If cell height is lower than tangent hight, 
+                                # map cell invisible (0).
+                                if zq < y_curr and npvs[ptix,ptiy] != 2 and npvs[ptix,ptiy] != 1:
+                                    npvs[ptix,ptiy] = 0
+                                # If cell height is higher than tangent,
+                                # map cell visible (1) and update slope tangent
+                                elif zq >= y_curr and npvs[ptix,ptiy] != 2:
+                                    npvs[ptix,ptiy] = 1
+                                    slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
+                                    slope_last.append(slope_curr)
+                elif dist > (radius - cellsize) and dist < radius:
+                    #print(npvs[row_i,col_i])
                     horizon_point = (row_i, col_i)
-                    horizon_points.append(horizon_point)
-                    vi_list.append(vi)
-                    output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
-                    output_list.append(output)
-                    slope_last = [-100]
-                    for point in output:
-                        cell_pt_i = ptix, ptiy = point[0], point[1]
-                        cell_co_pt = cell_cx, cell_cy = d.xy(ptix,ptiy)
-                        dist_vq = distance(vco,cell_co_pt)
-                        zq = npi[ptix,ptiy]
-                        
-                        y_curr = tangent_curr(slope_last[-1],dist_vq,h)
-                        if zq < y_curr and npvs[ptix,ptiy] != 2 and npvs[ptix,ptiy] != 1:
-                            npvs[ptix,ptiy] = 0
-                        elif zq >= y_curr and npvs[ptix,ptiy] != 2:
-                            npvs[ptix,ptiy] = 1
-                            slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
-                            slope_last.append(slope_curr)
+                    #horizon_points.append(horizon_point)
+                else:
+                    continue
+                #vi_list.append(vi)
+                output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
+                #output_list.append(output)
+                slope_last = [-100]
+                # For each cell on rasterized line, 
+                # compute tangent between viewpoint (v) and cell (qi)
+                for cell in output:
+                    cell_pt_i = ptix, ptiy = cell[0], cell[1]
+                    cell_co_pt = cell_cx, cell_cy = d.xy(ptix,ptiy)
+                    dist_vq = distance(vco,cell_co_pt)
+                    zq = npi[ptix,ptiy]
+                    y_curr = tangent_curr(slope_last[-1],dist_vq,h)
+                    # If cell height is lower than tangent hight, 
+                    # map cell invisible (0).
+                    if zq < y_curr and npvs[ptix,ptiy] != 2 and npvs[ptix,ptiy] != 1:
+                        npvs[ptix,ptiy] = 0
+                    # If cell height is higher than tangent,
+                    # map cell visible (1) and update slope tangent
+                    elif zq >= y_curr and npvs[ptix,ptiy] != 2:
+                        npvs[ptix,ptiy] = 1
+                        slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
+                        slope_last.append(slope_curr)
+
+
                             
     #-- write this to disk
     with rasterio.open(output_file, 'w', 
