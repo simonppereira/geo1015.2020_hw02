@@ -37,14 +37,19 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
                              all_touched=True,
                              transform=d.transform)
      # re is a numpy with d.shape where the line is rasterised (values != 0)
+     
+     # output is an index array that has the indices of elements
+     # that are non-zero, and value == 1
      output = numpy.argwhere(re == 1)
-
+    
+    # Here we reorder and sort (if necessary) the output, 
+    # such that the order starts from viewpoint (x,y) to horizonpoint (x,y)
      if bx >= ax and by > ay: # Upper right quadrant is ok...
         output = numpy.nonzero(re == 1)
         outputx = numpy.sort(output[0])
         outputx[::-1].sort()
         outputy = numpy.sort(output[1])
-        output = [i for i in zip(outputx, outputy) if i is not None]
+        output = [i for i in zip(outputx, outputy)]
      elif bx <= ax and by >= ay: # Upper left quadrant is good!
         output = numpy.argwhere(re == 1)
         output = numpy.flipud(output)
@@ -53,7 +58,7 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
         outputx = numpy.sort(output[0])
         outputy = numpy.sort(output[1])
         outputy[::-1].sort()
-        output = [i for i in zip(outputx, outputy) if i is not None]
+        output = [i for i in zip(outputx, outputy)]
      else:                         # Lower right quadrant is good!
         output = numpy.argwhere(re == 1)
         
@@ -63,14 +68,12 @@ def Bresenham_with_rasterio(d, viewpoint,horizon_point):
 def slope(v,q,dx,zv,zq):
     """
     Function that computes slope of tangent
-
     Inputs:
     v:              Coordinates x, y of viewpoint
     q:              Cell q to update slope from               
     dx:             delta x or cartesian distance between points 
     zv:             height value of viewpoint 
     zq:             height       
-
     Output:
     m:              slope 
     """
@@ -82,33 +85,15 @@ def slope(v,q,dx,zv,zq):
 def tangent_curr(a,x,b):
     """
     Function that computes tangent 
-
     Inputs:
     a:              previous slope
     x:              dx of vq (cartesian distance)
     b:              viewpoint height 
-
     Outputs:
     y:              tangent height at given cell q
     """
     y = (a*x) + b
     return y
-
-'''
-def horizon(dist,shape,radius,idx):
-    if dist > (radius - cellsize) and dist < radius:
-        #print(npvs[row_i,col_i])
-        horizon_point = (row_i, col_i)
-        #horizon_points.append(horizon_point)
-    elif dist > (radius - cellsize) and dist < radius and row_i < 0:
-        horizon_point = (0,col_i)
-    elif dist > (radius - cellsize) and dist < radius and row_i > shape[0]:
-        horizon_point = (shape[0],col_i)
-    elif dist > (radius - cellsize) and dist < radius and col_i < 0:
-        horizon_point = (row_i,0)
-    elif dist > (radius - cellsize) and dist < radius and col_i > shape[1]:
-        horizon_point = (0,shape[1])
-'''
 
 def output_viewshed(d, viewpoints, maxdistance, output_file):
     """
@@ -125,49 +110,25 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     Output:
         none (but output GeoTIFF file written to 'output-file')
     """  
-    # These are print to help you understand the structure of the inputs
-    #print('our dataset: ',d)
-    #print('our viewpoints',viewpoints)
-    #print('our maxdistance',maxdistance)
-    #print('our output file',output_file)
-    #print('our output file type', type(output_file))
-    # [this code can and should be removed/modified/reutilised]
-    # [it's just there to help you]
-
     #-- numpy of input
     npi  = d.read(1)
-    print('shape d',d.shape)
-    #print('type', type(d))
-    #print('type', type(npi))
-    print('shape npi ',npi.shape)
-    #print(npi[0][0])
-    #print(npi[0,0])
+    shape = npi.shape
     #-- fetch the 1st viewpoint
     v = viewpoints[0]
-    #v2 = viewpoints[1]
-    #print('viewpoint', v)
-    #print('viewpoint', v2)
-    #print('viewpoint x', v[0])
-    #print('viewpoint y', v[1])
-    #h = viewpoints[0][2]
-    #print('height', h)
 
     #cellsize 
     cell_ul,_ = d.xy(v[0],v[1],offset='ul')
     cell_ur,_ = d.xy(v[0],v[1],offset='ur')
     cellsize = cell_ur-cell_ul
-    #print('cellsize', cellsize)
 
     #-- Radius of viewpoint
     radius = maxdistance
 
     
-    #-- the results of the viewshed in npvs, all values=0
+    #-- the results of the viewshed in npvs, all values=3
     # This is actually our 'empty' raster to start with
-    #npvs = numpy.zeros(d.shape, dtype=numpy.int8)
     npvs = numpy.full(d.shape, 3, dtype=numpy.int8)
-    #print('npvs', npvs)
-    print('shape npvs',npvs.shape)
+
     # Now fill the rows and cols according to their index,
     # with following possible values:
     # 0: not visible from the viewpoint(s) (but inside the 
@@ -179,33 +140,18 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
     for i in viewpoints:
         #-- numpy of input
         npi  = d.read(1)
-        #cellsize 
-        cell_ul,_ = d.xy(v[0],v[1],offset='ul')
-        cell_ur,_ = d.xy(v[0],v[1],offset='ur')
-        cellsize = cell_ur-cell_ul
-
-        #-- Radius of viewpoint
-        radius = maxdistance
-        # viewpoint
+        # The viewpoint (x,y,z)
         v = i
         vco = (v[0],v[1])
         # index of this point in the numpy raster
         vi = vrow, vcol = d.index(v[0], v[1])
-        #print('vi in beginning loop',vi)
-        #vi = vrow, vcol
-        # This is the value of the centerpoint of the viewshed
+
+        # This is the heigth value of the centerpoint of the viewshed
         h = npi[vrow][vcol] + v[2]
-        #print('height',h)
+
+        # We mark the viewpoint with value 2 on the raster 
         npvs[vrow,vcol] = 2 
-        #horizon_points = []
-        #output_list= []
-        #vi_list = []
-        
-        #-- the results of the viewshed in npvs, all values=0
-        # This is actually our 'empty' raster to start with
-        npvs = numpy.full(d.shape, 3, dtype=numpy.int8)
-        shape = d.shape
-        print(shape)
+
         # Loop though every raster cell and enumerate 
         # (indices of row and column respectively)
         for row in enumerate(npvs):
@@ -215,13 +161,14 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                 idx = row_i, col_i
                 pt = d.xy(row_i,col_i)
                 dist = distance(vco,pt)
-                # When arrived at horizon point, initiate rasterized line
+                # Here, four if statements follow, that consist of if, else statements
+                # It is checked if a point on the horizon, finds itself on one of the 
+                # extents of the raster (8 possibilities)
                 if dist > (radius - cellsize) and dist < radius and row_i == 0:
                     if col_i < vcol:
                         for col_t in range(col_i,vcol+2):
                             horizon_point = (0,col_t)
                             output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
-                            #output_list.append(output)
                             slope_last = [-100]
                             # For each cell on rasterized line, 
                             # compute tangent between viewpoint (v) and cell (qi)
@@ -245,7 +192,6 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                         for col_t in range(vcol,col_i+2):
                             horizon_point = (0,col_t)
                             output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
-                            #output_list.append(output)
                             slope_last = [-100]
                             # For each cell on rasterized line, 
                             # compute tangent between viewpoint (v) and cell (qi)
@@ -265,15 +211,11 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                                     npvs[ptix,ptiy] = 1
                                     slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
                                     slope_last.append(slope_curr)
-                    #dist > (radius - cellsize) and dist < radius and 
-                    #horizon_point = (0,col_i)
                 elif dist > (radius - cellsize) and dist < radius and row_i == (shape[0]-1):
-                    print('I caught pacman', col_i,shape)
                     if col_i < vcol:
                         for col_t in range(col_i,vcol+2):
                             horizon_point = (shape[0],col_t)
                             output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
-                            #output_list.append(output)
                             slope_last = [-100]
                             # For each cell on rasterized line, 
                             # compute tangent between viewpoint (v) and cell (qi)
@@ -297,7 +239,6 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                         for col_t in range(vcol,col_i+2):
                             horizon_point = (shape[0],col_t)
                             output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
-                            #output_list.append(output)
                             slope_last = [-100]
                             # For each cell on rasterized line, 
                             # compute tangent between viewpoint (v) and cell (qi)
@@ -322,7 +263,6 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                         for row_t in range(row_i,vrow+2):
                             horizon_point = (row_t,0)
                             output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
-                            #output_list.append(output)
                             slope_last = [-100]
                             # For each cell on rasterized line, 
                             # compute tangent between viewpoint (v) and cell (qi)
@@ -346,7 +286,6 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                         for row_t in range(vrow,row_i+2):
                             horizon_point = (row_t,0)
                             output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
-                            #output_list.append(output)
                             slope_last = [-100]
                             # For each cell on rasterized line, 
                             # compute tangent between viewpoint (v) and cell (qi)
@@ -371,7 +310,6 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                         for row_t in range(row_i,vrow+2):
                             horizon_point = (row_t,0)
                             output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
-                            #output_list.append(output)
                             slope_last = [-100]
                             # For each cell on rasterized line, 
                             # compute tangent between viewpoint (v) and cell (qi)
@@ -395,7 +333,6 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                         for row_t in range(vrow,row_i+2):
                             horizon_point = (row_t,0)
                             output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
-                            #output_list.append(output)
                             slope_last = [-100]
                             # For each cell on rasterized line, 
                             # compute tangent between viewpoint (v) and cell (qi)
@@ -415,15 +352,11 @@ def output_viewshed(d, viewpoints, maxdistance, output_file):
                                     npvs[ptix,ptiy] = 1
                                     slope_curr = slope(vco,cell_co_pt,dist_vq,h,zq)
                                     slope_last.append(slope_curr)
-                elif dist > (radius - cellsize) and dist < radius:
-                    #print(npvs[row_i,col_i])
+                elif dist > (radius - cellsize) and dist <= radius:
                     horizon_point = (row_i, col_i)
-                    #horizon_points.append(horizon_point)
                 else:
                     continue
-                #vi_list.append(vi)
                 output,_ = Bresenham_with_rasterio(d,vi,horizon_point)
-                #output_list.append(output)
                 slope_last = [-100]
                 # For each cell on rasterized line, 
                 # compute tangent between viewpoint (v) and cell (qi)
